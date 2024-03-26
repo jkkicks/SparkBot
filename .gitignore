@@ -1,0 +1,4 @@
+*.env
+/.venv
+member_data.db
+discord.log

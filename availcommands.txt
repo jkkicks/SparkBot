@@ -1,3 +1,0 @@
-/help : to view all commands
-/nick : to view current nickname
-/setnick : to change nickname

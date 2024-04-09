@@ -35,19 +35,43 @@ async def welcome_message():
     embed.set_footer(text="Enjoy your stay!")
     await welcome_channel.send(embed=embed, view=OnboardButtons())
 
-async def update_nickname(member, firstname, lastname):
+async def update_nickname(member, firstname, lastname):     #update server nickname from DB
     nickname = f"{firstname} {lastname}"
     c.execute("UPDATE members SET nickname = ?, firstname = ?, lastname = ? WHERE user_id = ?", (nickname, firstname, lastname, member.id))
     conn.commit()
-    print(f'Updated... {member}, {firstname}, {lastname}, {nickname}')
+    print(f'Updated DB nickname for: {member}, {firstname}, {lastname}, {nickname}')
     await member.edit(nick=nickname)
 
+async def remove_user(user):        #Remove user from DB and delete server nickname
+    c.execute("DELETE FROM members WHERE user_id = ?", (user.id,))
+    conn.commit()
+    if user:
+        await user.edit(nick=None)
+    #TODO demote user role
+
+async def update_onboard(member):           #increase onboarding status by 1
+    print(f'Updating onboarding for: {member.display_name}')
+    c.execute("SELECT onboarding_status FROM members WHERE user_id = ?", (member.id,))
+    status = c.fetchone()
+    status += 1
+    c.execute("UPDATE members SET onboarding_status = ? WHERE user_id = ?",
+              (status, member.id))
+    conn.commit()
+
+async def add_member_to_role(member, role_name):
+    print(f"Adding {role_name} role to {member.display_name}")
+    role = discord.utils.get(member.guild.roles, name=role_name)        # Get role from guild
+    if role:
+        await member.add_roles(role)
+        print(f"Added role '{role_name}' to member '{member.display_name}'")
+    else:
+        print(f"Role '{role_name}' not found in server '{member.guild.name}'")
 
 # Load environment variables
 load_dotenv()
 
 # Setup logging
-logging.basicConfig(filename='discord.log', level=logging.INFO)
+logging.basicConfig(filename='SparkBot.log', level=logging.INFO)
 
 # Define intents
 intents = discord.Intents.all()
@@ -67,9 +91,6 @@ c.execute('''CREATE TABLE IF NOT EXISTS members (
         )''')
 
 conn.commit()
-
-# Initialize bot
-client = commands.Bot(command_prefix='.', intents=intents)
 
 class PersistentViewBot(commands.Bot):
     def __init__(self):
@@ -95,17 +116,19 @@ class OnboardModal(discord.ui.Modal, title="Onboarding: "):
         placeholder="Doe"
     )
     async def on_submit(self, interaction: discord.InteractionResponse):
-        print(f'First name: {self.first_name.value}')
-        print(f'Last Name: {self.last_name.value}')
-        print(f'User: {self.user.id}')
-
         await interaction.response.defer()
         await update_nickname(member=self.user, firstname=self.first_name.value, lastname=self.last_name.value)
+        await update_onboard(member=self.user)
+        role_to_add = "Maker"
+        await add_member_to_role(member=self.user, role_name=role_to_add)
+        # print(f'First name: {self.first_name.value}')
+        # print(f'Last Name: {self.last_name.value}')
+        # print(f'User: {self.user.id}')
         #channel = interaction.guild.get_channel(WELCOME_CHANNEL_ID)
         #embed = discord.Embed(title="New Onboarding data", description=self.message.value)
         #embed.set_author(name=self.user.nick)
         #await channel.send(embed=embed)
-        #await interaction.response.send_message("Thanks", ephemeral=True)
+        await interaction.send_message("Thanks for completing onboarding!", ephemeral=True)
     async def on_error(self, interaction: discord.Interaction, error):
         ...
 
@@ -122,7 +145,7 @@ class OnboardButtons(discord.ui.View):
 async def on_ready():
     print(f'Logged in as {client.user}')
     await welcome_message()
-    try:
+    try:            #sync slash commands
         synced = await client.tree.sync()
         print(f'Slash Commands Synced. {str(len(synced))} Total Commands {synced}')
     except Exception as e:
@@ -149,6 +172,11 @@ async def on_member_join(member):
         # Log member join
         logging.info(f'Member {member.name} joined the server.')
 
+@client.tree.command(name="remove", description="Remove user from database, and remove user's nickname")
+@app_commands.describe(member="The member you want to remove")
+async def remove(interaction: discord.Integration, member: discord.Member):
+    await remove_user(member)
+    await interaction.response.send_message(f"User {member.display_name} Removed", ephemeral=True)
 
 @client.event
 async def on_member_remove(member):
@@ -159,6 +187,7 @@ async def on_member_remove(member):
 # Load bot token and welcome channel id from .env file
 TOKEN = os.getenv('BOT_TOKEN')
 WELCOME_CHANNEL_ID = os.getenv('WELCOME_CHANNEL_ID')
+GUILD_ID = str(os.getenv('GUILD_ID'))
 
 # Start bot
 client.run(TOKEN)

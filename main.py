@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone
 from discord import ui, Interaction
 import random
+import sys
 
 async def welcome_message():
     # Find the #welcome channel
@@ -211,6 +212,12 @@ async def cmd_nine_nine(ctx):
 
     response = random.choice(brooklyn_99_quotes)
     await ctx.send(response)
+
+@client.command(name='shutdown')
+async def cmd_shutdown(ctx):
+    """Shutdown the bot"""
+    await ctx.send("Shutting down!")
+    sys.exit()
 
 # @client.event
 # async def on_message(message):

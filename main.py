@@ -7,7 +7,7 @@ import sqlite3
 import logging
 from datetime import datetime, timezone
 from discord import ui, Interaction
-
+import random
 
 async def welcome_message():
     # Find the #welcome channel
@@ -37,26 +37,44 @@ async def welcome_message():
 
 async def update_nickname(member, firstname, lastname):     #update server nickname from DB
     nickname = f"{firstname} {lastname}"
-    c.execute("UPDATE members SET nickname = ?, firstname = ?, lastname = ? WHERE user_id = ?", (nickname, firstname, lastname, member.id))
-    conn.commit()
-    print(f'Updated DB nickname for: {member}, {firstname}, {lastname}, {nickname}')
+    with sqlite3.connect('member_data.db') as conn:
+        c = conn.cursor()
+        c.execute("UPDATE members SET nickname = ?, firstname = ?, lastname = ? WHERE user_id = ?", (nickname, firstname, lastname, member.id))
+        conn.commit()
+        print(f'Updated DB nickname for: {member}, {firstname}, {lastname}, {nickname}')
     await member.edit(nick=nickname)
 
 async def remove_user(user):        #Remove user from DB and delete server nickname
-    c.execute("DELETE FROM members WHERE user_id = ?", (user.id,))
-    conn.commit()
+    with sqlite3.connect('member_data.db') as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM members WHERE user_id = ?", (user.id,))
+        conn.commit()
     if user:
         await user.edit(nick=None)
     #TODO demote user role
 
 async def update_onboard(member):           #increase onboarding status by 1
-    print(f'Updating onboarding for: {member.display_name}')
-    c.execute("SELECT onboarding_status FROM members WHERE user_id = ?", (member.id,))
-    status = c.fetchone()
-    status += 1
-    c.execute("UPDATE members SET onboarding_status = ? WHERE user_id = ?",
-              (status, member.id))
-    conn.commit()
+    logging.info(f'Updating onboarding for: {member.display_name} {member.id}')
+
+    # Connect to the database using a context manager
+    with sqlite3.connect('member_data.db') as conn:
+        c = conn.cursor()
+
+        c.execute("SELECT onboarding_status FROM members WHERE user_id = ?", (member.id,))
+        row = c.fetchone()
+
+        if row is None:
+            logging.error("No matching user found in the database.")
+            return
+
+        status = row[0]
+        status += 1
+
+        c.execute("UPDATE members SET onboarding_status = ? WHERE user_id = ?",
+            (status, member.id))
+
+        conn.commit()
+        logging.warning(f'Updated onboarding for {member.display_name}: {status}')
 
 async def add_member_to_role(member, role_name):
     print(f"Adding {role_name} role to {member.display_name}")
@@ -77,25 +95,26 @@ logging.basicConfig(filename='SparkBot.log', level=logging.INFO)
 intents = discord.Intents.all()
 
 # Connect to SQLite database
-conn = sqlite3.connect('member_data.db')
-c = conn.cursor()
+with sqlite3.connect('member_data.db') as conn:
+    c = conn.cursor()
 
-# Create table with fields if it doesn't exist already
-c.execute('''CREATE TABLE IF NOT EXISTS members (
-            user_id INTEGER PRIMARY KEY, 
-            username TEXT, nickname TEXT, 
-            firstname TEXT, lastname TEXT,
-            join_datetime TEXT, 
-            onboarding_status INTEGER, 
-            last_change_datetime TEXT
-        )''')
+    # Create table with fields if it doesn't exist already
+    c.execute('''CREATE TABLE IF NOT EXISTS members (
+                user_id INTEGER PRIMARY KEY, 
+                username TEXT, nickname TEXT, 
+                firstname TEXT, lastname TEXT,
+                join_datetime TEXT, 
+                onboarding_status INTEGER, 
+                last_change_datetime TEXT
+            )''')
 
-conn.commit()
+    conn.commit()
+
 
 class PersistentViewBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents().all()
-        super().__init__(command_prefix=commands.when_mentioned_or("."), intents=intents)
+        super().__init__(command_prefix=commands.when_mentioned_or("/"), intents=intents)
     async def setup_hook(self) -> None:
         self.add_view(OnboardButtons())
         #self.add_view(OnboardButtons())            #Add More views with more add_view commands.
@@ -151,26 +170,92 @@ async def on_ready():
     except Exception as e:
         print(e)
 
+    print("Members in the DB:")
+
+    with sqlite3.connect('member_data.db') as conn:
+        c = conn.cursor()
+
+        c.execute("SELECT user_id, username, nickname FROM members")
+        for row in c.fetchall():
+            print(f'  ID: {row[0]} User: {row[1]} Nick: {row[2]}')
+
+    print("Ready.")
+
+@client.command(name='reinit')
+async def cmd_reinit(ctx):
+    """Re-initialize a user in the database (i.e. if the bot wasn't listening when they joined)"""
+    await on_member_join(ctx.author)
+    await ctx.send("Reinitialized!")
+
+@client.command(name='nick')
+async def cmd_nick(ctx):
+    """View current nickname"""
+    await ctx.send(f'You are {ctx.author.nick}')
+
+@client.command(name='setnick')
+async def cmd_setnick(ctx, arg1, arg2):
+    """Change nickname (use two words separated by a space)"""
+    await update_nickname(ctx.author, arg1, arg2)
+    await ctx.send(f'You are now {ctx.author.nick}')
+
+@client.command(name='99')
+async def cmd_nine_nine(ctx):
+    brooklyn_99_quotes = [
+        'I\'m the human form of the 💯 emoji.',
+        'Bingpot!',
+        (
+            'Cool. Cool cool cool cool cool cool cool, '
+            'no doubt no doubt no doubt no doubt.'
+        ),
+    ]
+
+    response = random.choice(brooklyn_99_quotes)
+    await ctx.send(response)
+
+# @client.event
+# async def on_message(message):
+#     if message.author == client.user:
+#         return
+
+#     brooklyn_99_quotes = [
+#         'I\'m the human form of the 💯 emoji.',
+#         'Bingpot!',
+#         (
+#             'Cool. Cool cool cool cool cool cool cool, '
+#             'no doubt no doubt no doubt no doubt.'
+#         ),
+#     ]
+
+#     if message.content == '/99':
+#         response = random.choice(brooklyn_99_quotes)
+#         await message.channel.send(response)
 
 @client.event
 async def on_member_join(member):
     await welcome_message()
-    # Check if member already exists in the database
-    c.execute("SELECT * FROM members WHERE user_id = ?", (member.id,))
-    existing_member = c.fetchone()
 
-    if not existing_member:  # If it's the member's first time joining
-        # Add new member to the database
-        c.execute(
-            "INSERT OR REPLACE INTO members (user_id, username, join_datetime, onboarding_status, last_change_datetime) VALUES (?, ?, ?, ?, ?)",
-            (member.id, member.name, member.joined_at.isoformat(), 0, datetime.now(timezone.utc).isoformat()))
-        conn.commit()
+    with sqlite3.connect('member_data.db') as conn:
+        c = conn.cursor()
 
-        # Update member nickname
-        await member.edit(nick=c.execute("SELECT nickname FROM members WHERE user_id = ?", (member.id,)).fetchone()[0])
+        # Check if member already exists in the database
+        c.execute("SELECT * FROM members WHERE user_id = ?", (member.id,))
 
-        # Log member join
-        logging.info(f'Member {member.name} joined the server.')
+        existing_member = c.fetchone()
+
+        if not existing_member:  # If it's the member's first time joining
+            # Add new member to the database
+            c.execute(
+                "INSERT OR REPLACE INTO members (user_id, username, join_datetime, onboarding_status, last_change_datetime) VALUES (?, ?, ?, ?, ?)",
+                (member.id, member.name, member.joined_at.isoformat(), 0, datetime.now(timezone.utc).isoformat()))
+            conn.commit()
+
+            # Update member nickname
+            await member.edit(nick=c.execute("SELECT nickname FROM members WHERE user_id = ?", (member.id,)).fetchone()[0])
+
+            # Log member join
+            logging.warning(f'Member {member.name} joined the server.')
+        else:
+            logging.info(f'Member {member.name} rejoined the server.')
 
 @client.tree.command(name="remove", description="Remove user from database, and remove user's nickname")
 @app_commands.describe(member="The member you want to remove")
@@ -181,7 +266,7 @@ async def remove(interaction: discord.Integration, member: discord.Member):
 @client.event
 async def on_member_remove(member):
     # Log member leave
-    logging.info(f'Member {member.name} left the server.')
+    logging.warning(f'Member {member.name} left the server.')
 
 
 # Load bot token and welcome channel id from .env file

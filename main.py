@@ -52,7 +52,8 @@ async def remove_user(user):        #Remove user from DB and delete server nickn
         conn.commit()
     if user:
         await user.edit(nick=None)
-    #TODO demote user role
+        role = discord.utils.get(user.guild.roles, name="Maker")    #Remove role "Maker" from user
+        await user.remove_roles(role)
 
 async def update_onboard(member):           #increase onboarding status by 1
     logging.info(f'Updating onboarding for: {member.display_name} {member.id}')

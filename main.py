@@ -161,6 +161,48 @@ class OnboardButtons(discord.ui.View):
         onboard_modal.user = interaction.user
         await interaction.response.send_modal(onboard_modal)
 
+    @discord.ui.button(label="What is Onboarding?", style=discord.ButtonStyle.blurple, custom_id="2")
+    async def aboutonboard(self, interaction: discord.InteractionResponse, button: discord.ui.Button):
+        embed = discord.Embed(title="What is onboarding?",
+                              description="Welcome to our Discord server! We're thrilled to have you join our community. To unlock the full experience and access more parts of the server, we ask that you complete the member onboarding process. This involves providing some personal data, which helps us tailor your experience and ensure a safe and engaging environment for everyone.")
+        embed.add_field(name="Why Complete Onboarding?",
+                        value="Completing the onboarding process not only grants you access to additional server features but also allows you to actively participate in discussions, events, and activities. While it's optional, incomplete onboarding results in limited access to the server, with read-only privileges.",
+                        inline=False)
+        embed.add_field(name="What Information is Collected?",
+                        value="When you complete onboarding, the following information is stored securely in our database: ",
+                        inline=False)
+        embed.add_field(name=" ",
+                        value="-Discord ID: Your unique identifier on Discord. ",
+                        inline=False)
+        embed.add_field(name=" ",
+                        value="-Nickname: The name you choose to display in the server.",
+                        inline=False)
+        embed.add_field(name=" ",
+                        value="-Server Join Date: The date you joined our community",
+                        inline=False)
+        embed.add_field(name=" ",
+                        value="-Server Access Level: Information about your permissions within the server.",
+                        inline=False)
+        embed.add_field(name="Agreement to Server Rules",
+                        value="By completing the onboarding process, you agree to abide by the rules and guidelines set forth in our Discord server. These rules are in place to ensure a respectful and inclusive environment for all members.",
+                        inline=False)
+        embed.add_field(name="Privacy and Data Usage",
+                        value="We take your privacy seriously. Any data provided during the onboarding process is handled in accordance with our privacy policy. By completing onboarding, you consent to: ",
+                        inline=False)
+        embed.add_field(name=" ",
+                        value="-Public Visibility: Your posts and comments may be made publicly visible not only within the Discord server but also on our website, social media platforms, blog, and other related channels. ",
+                        inline=False)
+        embed.add_field(name=" ",
+                        value="-Data Storage: Your inputted information will be stored securely by our server for administrative and community management purposes.",
+                        inline=False)
+
+        embed.add_field(name="Get Started",
+                        value='Ready to complete the onboarding process? Simply click the "Complete Onboarding" Button in the #welcome channel. If you have any questions or concerns about the process, feel free to reach out to our moderation team for assistance. '
+                              "Thank you for joining our community and for taking the time to complete the onboarding process. We look forward to getting to know you better and engaging with you in meaningful discussions and activities!",
+                        inline=False)
+        await interaction.response.send_message(embed=embed ,ephemeral=True)
+
+
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user}')

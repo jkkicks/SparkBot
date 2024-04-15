@@ -52,7 +52,8 @@ async def remove_user(user):        #Remove user from DB and delete server nickn
         conn.commit()
     if user:
         await user.edit(nick=None)
-    #TODO demote user role
+        role = discord.utils.get(user.guild.roles, name="Maker")    #Remove role "Maker" from user
+        await user.remove_roles(role)
 
 async def update_onboard(member):           #increase onboarding status by 1
     logging.info(f'Updating onboarding for: {member.display_name} {member.id}')
@@ -136,7 +137,8 @@ class OnboardModal(discord.ui.Modal, title="Onboarding: "):
         placeholder="Doe"
     )
     async def on_submit(self, interaction: discord.InteractionResponse):
-        await interaction.response.defer()
+        await interaction.response.send_message("Thanks for completing Onboarding! If you have any questions, don't hesitate to reach out!", ephemeral=True)
+        #await interaction.response.defer()
         await update_nickname(member=self.user, firstname=self.first_name.value, lastname=self.last_name.value)
         await update_onboard(member=self.user)
         role_to_add = "Maker"
@@ -144,23 +146,26 @@ class OnboardModal(discord.ui.Modal, title="Onboarding: "):
         # print(f'First name: {self.first_name.value}')
         # print(f'Last Name: {self.last_name.value}')
         # print(f'User: {self.user.id}')
-        #channel = interaction.guild.get_channel(WELCOME_CHANNEL_ID)
-        #embed = discord.Embed(title="New Onboarding data", description=self.message.value)
-        #embed.set_author(name=self.user.nick)
-        #await channel.send(embed=embed)
-        await interaction.send_message("Thanks for completing onboarding!", ephemeral=True)
+        
     async def on_error(self, interaction: discord.Interaction, error):
         ...
 
 class OnboardButtons(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
+                                        #Button that sends modal (Popup)
     @discord.ui.button(label="Complete Onboarding", style=discord.ButtonStyle.green, custom_id="1")
     async def onboard(self, interaction: discord.InteractionResponse, button: discord.ui.Button):
         onboard_modal = OnboardModal()
         onboard_modal.user = interaction.user
-        await interaction.response.send_modal(onboard_modal)
 
+        if interaction.user.nick:
+            await interaction.response.send_message(content="You have already been onboarded! To change your onboarding status, please reach out to the Moderators", ephemeral=True)
+        else:
+            await interaction.response.send_modal(onboard_modal)
+
+
+                                        #Button that sends ephemeral embed describing the onboarding process
     @discord.ui.button(label="What is Onboarding?", style=discord.ButtonStyle.blurple, custom_id="2")
     async def aboutonboard(self, interaction: discord.InteractionResponse, button: discord.ui.Button):
         embed = discord.Embed(title="What is onboarding?",

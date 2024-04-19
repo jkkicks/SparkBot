@@ -1,6 +1,6 @@
 # SparkBot
 
-A Discord bot for Spark Studio Salem
+A Discord bot to moderate anonymity in Discord servers by requiring users to provide onboarding information before being given access to the entire server
 
 ## Prerequisites
 
